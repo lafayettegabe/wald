@@ -20,8 +20,11 @@ if [ -n "${AWS_ENDPOINT}" ]; then
     echo "${AWS_ENDPOINT}" > /etc/wal-g/env/AWS_ENDPOINT
 fi
 
-echo "${WALG_LIBSODIUM_KEY}" > /etc/wal-g/env/WALG_LIBSODIUM_KEY
-echo 'hex' > /etc/wal-g/env/WALG_LIBSODIUM_KEY_TRANSFORM
+if [ -n "${WALG_LIBSODIUM_KEY}" ]; then
+    echo "${WALG_LIBSODIUM_KEY}" > /etc/wal-g/env/WALG_LIBSODIUM_KEY
+    echo 'hex' > /etc/wal-g/env/WALG_LIBSODIUM_KEY_TRANSFORM
+fi
+
 echo "${WALG_COMPRESSION_METHOD:-lz4}" > /etc/wal-g/env/WALG_COMPRESSION_METHOD
 echo "${WALG_DELTA_MAX_STEPS:-6}" > /etc/wal-g/env/WALG_DELTA_MAX_STEPS
 echo "${WALG_UPLOAD_CONCURRENCY:-16}" > /etc/wal-g/env/WALG_UPLOAD_CONCURRENCY

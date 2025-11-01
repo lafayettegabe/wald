@@ -17,7 +17,6 @@ required_vars=(
     "AWS_ACCESS_KEY_ID"
     "AWS_SECRET_ACCESS_KEY"
     "WALG_S3_PREFIX"
-    "WALG_LIBSODIUM_KEY"
 )
 
 missing_vars=()
