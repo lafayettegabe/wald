@@ -52,8 +52,10 @@ AWS_REGION=us-east-1
 WALG_S3_PREFIX=s3://your-bucket/postgres-backups
 
 # WAL-G Configuration
-WALG_LIBSODIUM_KEY=your_64_character_hex_encryption_key_here_1234567890abcdef
 WALG_RETENTION_DAYS=30
+
+# Optional: Encryption (generate key with: openssl rand -hex 32)
+# WALG_LIBSODIUM_KEY=your_64_character_hex_encryption_key_here_1234567890abcdef
 
 # Optional: Custom S3 Endpoint (for MinIO, etc.)
 # AWS_ENDPOINT=https://your-minio-endpoint.com
@@ -105,7 +107,6 @@ docker exec postgres-walg tail -f /var/log/wal-g/backup-cron.log
 | `AWS_ACCESS_KEY_ID` | AWS/S3 access key | `AKIAIOSFODNN7EXAMPLE` |
 | `AWS_SECRET_ACCESS_KEY` | AWS/S3 secret key | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY` |
 | `WALG_S3_PREFIX` | S3 backup location | `s3://my-bucket/postgres-backups` |
-| `WALG_LIBSODIUM_KEY` | 64-char hex encryption key | `64_character_hex_string_here...` |
 
 ### Optional Variables
 
@@ -113,6 +114,7 @@ docker exec postgres-walg tail -f /var/log/wal-g/backup-cron.log
 |----------|---------|-------------|
 | `AWS_REGION` | `us-east-1` | AWS region |
 | `AWS_ENDPOINT` | - | Custom S3 endpoint (MinIO, etc.) |
+| `WALG_LIBSODIUM_KEY` | - | 64-char hex encryption key for backup encryption |
 | `WALG_RETENTION_DAYS` | `30` | Backup retention period |
 | `WALG_COMPRESSION_METHOD` | `lz4` | Compression method |
 | `WALG_AUTOMATED_BACKUPS` | `true` | Enable/disable automated backups |
