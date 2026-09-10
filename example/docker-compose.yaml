@@ -9,4 +9,3 @@ services:
       - .env
     volumes:
       - ./data/postgres:/var/lib/postgresql/data
-      - ./data/logs:/var/log/wal-g

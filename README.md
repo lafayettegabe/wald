@@ -17,20 +17,21 @@
 
 > 🚀 **Production-ready PostgreSQL with automated WAL-G backups to S3-compatible storage**
 
-A Docker image that combines PostgreSQL with WAL-G for automated, encrypted backups to S3-compatible storage. Features include automatic WAL archiving, scheduled incremental and full backups, intelligent cleanup, and email notifications.
+A Docker image that combines PostgreSQL 18.6 with WAL-G v3.0.9 for automated, encrypted backups to S3-compatible storage. Features include automatic WAL archiving, scheduled incremental and full backups, intelligent cleanup, and email notifications.
 
 ## ✨ Features
 
 - 🔄 **Automated Backup Scheduling**
-  - Incremental backups every 2 hours
-  - Full backups daily at 4 AM
+  - Incremental backups every 2 hours (except full-backup hours)
+  - Full backups twice a day (04:00 and 16:00)
   - Automated cleanup daily at 5 AM
 - 🏗️ **Multi-Architecture Support** - AMD64 and ARM64
 - 🔐 **Encryption** - Built-in libsodium encryption
 - 📧 **Email Notifications** - Success/failure notifications
 - 🗄️ **S3-Compatible Storage** - AWS S3, MinIO, etc.
-- 📊 **Comprehensive Logging** - Detailed backup logs
+- 📊 **Container-Native Logging** - All logs go to stdout, available via `docker logs`
 - ⚡ **Optimized Performance** - Tuned PostgreSQL parameters
+- ⚙️ **Configurable Schedule** - Backup schedule customizable via environment variables
 - 🔧 **Zero Configuration** - Works out of the box
 
 ## 🚀 Quick Start
@@ -62,6 +63,11 @@ WALG_RETENTION_DAYS=30
 
 # Optional: Email Notifications
 # WALG_NOTIFICATION_EMAIL=admin@yourcompany.com
+
+# Optional: Backup Schedule (cron expressions, defaults shown)
+# WALG_INCREMENTAL_SCHEDULE=0 0,2,6,8,10,12,14,18,20,22 * * *
+# WALG_FULL_BACKUP_SCHEDULE=0 4,16 * * *
+# WALG_CLEANUP_SCHEDULE=0 5 * * *
 ```
 
 ### 2. Run with Docker Compose
@@ -78,7 +84,6 @@ services:
       - .env
     volumes:
       - ./data/postgres:/var/lib/postgresql/data
-      - ./data/logs:/var/log/wal-g
 ```
 
 ```bash
@@ -94,8 +99,8 @@ docker logs postgres-walg
 # Check backup status
 docker exec postgres-walg su - postgres -c "envdir /etc/wal-g/env /usr/local/bin/wal-g backup-list"
 
-# View backup logs
-docker exec postgres-walg tail -f /var/log/wal-g/backup-cron.log
+# Follow backup logs in real time
+docker logs -f postgres-walg
 ```
 
 ## 📋 Environment Variables
@@ -121,16 +126,26 @@ docker exec postgres-walg tail -f /var/log/wal-g/backup-cron.log
 | `WALG_NOTIFICATION_EMAIL` | - | Email for backup notifications |
 | `WALG_UPLOAD_CONCURRENCY` | `16` | Upload concurrency |
 | `WALG_DOWNLOAD_CONCURRENCY` | `10` | Download concurrency |
+| `WALG_INCREMENTAL_SCHEDULE` | `0 0,2,6,8,10,12,14,18,20,22 * * *` | Cron expression for incremental backups |
+| `WALG_FULL_BACKUP_SCHEDULE` | `0 4,16 * * *` | Cron expression for full backups |
+| `WALG_CLEANUP_SCHEDULE` | `0 5 * * *` | Cron expression for cleanup |
 
 ## 🕒 Backup Schedule
 
-The backup schedule is **hardcoded** for reliability and cannot be changed via environment variables:
+The backup schedule is **configurable via environment variables** (standard cron expressions). If not set, the following defaults are used:
 
-| Type | Schedule | Description |
-|------|----------|-------------|
-| **Incremental** | `0 */2 * * *` | Every 2 hours |
-| **Full Backup** | `0 4 * * *` | Daily at 4:00 AM |
+| Type | Default Schedule | Description |
+|------|------------------|-------------|
+| **Incremental** | `0 0,2,6,8,10,12,14,18,20,22 * * *` | Every 2 hours except full-backup hours |
+| **Full Backup** | `0 4,16 * * *` | Twice a day (04:00 and 16:00) |
 | **Cleanup** | `0 5 * * *` | Daily at 5:00 AM |
+
+Example — run full backups daily at 3:00 AM and incremental backups every 4 hours:
+
+```bash
+WALG_INCREMENTAL_SCHEDULE=0 */4 * * *
+WALG_FULL_BACKUP_SCHEDULE=0 3 * * *
+```
 
 ## 🛠️ Manual Operations
 
@@ -191,26 +206,22 @@ echo "recovery_target_time = '2025-06-02 14:30:00'" >> ./data/postgres/recovery.
 
 ## 📊 Monitoring & Logs
 
-### Log Locations
-
-| Log Type | Location | Description |
-|----------|----------|-------------|
-| **WAL Archive** | `/var/log/wal-g/archive.log` | WAL file archiving |
-| **Backup Cron** | `/var/log/wal-g/backup-cron.log` | Scheduled backups |
-| **Cleanup** | `/var/log/wal-g/cleanup-cron.log` | Backup cleanup |
-| **Setup** | `/var/log/wal-g/cron-setup.log` | Initial setup |
+All scripts log to the container's stdout, so everything is available via `docker logs` and is automatically collected by your Docker logging driver (json-file, fluentd, loki, etc.).
 
 ### View Logs
 
 ```bash
-# Real-time backup logs
-docker exec postgres-walg tail -f /var/log/wal-g/backup-cron.log
+# All container logs (postgres + WAL-G + cron jobs)
+docker logs postgres-walg
 
-# Archive logs
-docker exec postgres-walg tail -f /var/log/wal-g/archive.log
+# Follow logs in real time
+docker logs -f postgres-walg
 
-# All WAL-G logs
-docker exec postgres-walg tail -f /var/log/wal-g/*.log
+# Only backup-related entries
+docker logs postgres-walg 2>&1 | grep BACKUP-CRON
+
+# Only WAL archiving entries
+docker logs postgres-walg 2>&1 | grep ARCHIVE
 ```
 
 ### Health Checks
@@ -321,7 +332,7 @@ docker exec postgres-walg ls -la /etc/wal-g/env/
 **WAL Files Not Archiving**
 ```bash
 # Check archive command logs
-docker exec postgres-walg tail -20 /var/log/wal-g/archive.log
+docker logs postgres-walg 2>&1 | grep ARCHIVE
 ```
 
 **S3 Connection Issues**

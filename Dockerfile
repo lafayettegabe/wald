@@ -1,14 +1,14 @@
-FROM postgres:16
+FROM postgres:18.6
 
 LABEL maintainer="gabriel.lafayette@proton.me"
-LABEL description="PostgreSQL 16 with WAL-G backup support"
-LABEL version="1.0.0"
+LABEL description="PostgreSQL 18.6 with WAL-G backup support"
+LABEL version="1.1.0"
 
 ARG TARGETARCH
 ARG TARGETOS
 ARG TARGETPLATFORM
 
-ENV WALG_VERSION=v3.0.7
+ENV WALG_VERSION=v3.0.9
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y \
@@ -24,11 +24,11 @@ RUN set -eux; \
     case "${TARGETARCH}" in \
         amd64) \
             WALG_ARCH="amd64"; \
-            WALG_FILE="wal-g-pg-ubuntu-20.04-amd64.tar.gz"; \
+            WALG_FILE="wal-g-pg-24.04-amd64.tar.gz"; \
             ;; \
         arm64) \
             WALG_ARCH="aarch64"; \
-            WALG_FILE="wal-g-pg-ubuntu-20.04-aarch64.tar.gz"; \
+            WALG_FILE="wal-g-pg-24.04-aarch64.tar.gz"; \
             ;; \
         *) \
             echo "Unsupported architecture: ${TARGETARCH}"; \
@@ -38,7 +38,7 @@ RUN set -eux; \
     echo "Downloading WAL-G for ${TARGETARCH} (${WALG_ARCH})..."; \
     wget "https://github.com/wal-g/wal-g/releases/download/${WALG_VERSION}/${WALG_FILE}" \
     && tar -zxvf "${WALG_FILE}" \
-    && mv "wal-g-pg-ubuntu-20.04-${WALG_ARCH}" /usr/local/bin/wal-g \
+    && mv "wal-g-pg-24.04-${WALG_ARCH}" /usr/local/bin/wal-g \
     && chmod +x /usr/local/bin/wal-g \
     && rm "${WALG_FILE}" \
     && echo "WAL-G ${WALG_VERSION} installed for ${TARGETARCH}"

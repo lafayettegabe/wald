@@ -3,10 +3,9 @@
 
 WAL_FILE_PATH="$1"
 WAL_FILE_NAME="$2"
-LOG_FILE="/var/log/wal-g/archive.log"
 
 log_message() {
-    echo "$(date '+%Y-%m-%d %H:%M:%S') [ARCHIVE] $1" >> "$LOG_FILE"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') [ARCHIVE] $1"
 }
 
 if [ ! -f "$WAL_FILE_PATH" ]; then
@@ -16,7 +15,7 @@ fi
 
 log_message "Archiving $WAL_FILE_NAME"
 
-if timeout 300 envdir /etc/wal-g/env /usr/local/bin/wal-g wal-push "$WAL_FILE_PATH" 2>> "$LOG_FILE"; then
+if timeout 300 envdir /etc/wal-g/env /usr/local/bin/wal-g wal-push "$WAL_FILE_PATH"; then
     log_message "Successfully archived $WAL_FILE_NAME"
     exit 0
 else
