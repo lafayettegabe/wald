@@ -3,10 +3,9 @@ set -e
 
 
 BACKUP_TYPE="${1:-incremental}"
-LOG_FILE="/var/log/wal-g/backup-cron.log"
 
 log_message() {
-    echo "$(date '+%Y-%m-%d %H:%M:%S') [BACKUP-CRON] $1" | tee -a "$LOG_FILE"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') [BACKUP-CRON] $1"
 }
 
 send_notification() {
@@ -38,6 +37,9 @@ fi
 
 DB_SIZE=$(psql -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-postgres}" -t -c "SELECT pg_size_pretty(pg_database_size('${POSTGRES_DB:-postgres}'));" 2>/dev/null | xargs || echo "Unknown")
 
+DATA_DIR=$(psql -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-postgres}" -tAc "SHOW data_directory;" 2>/dev/null | xargs)
+DATA_DIR="${DATA_DIR:-${PGDATA:-/var/lib/postgresql/data}}"
+
 BACKUP_START_TIME=$(date '+%Y-%m-%d %H:%M:%S')
 BACKUP_START_EPOCH=$(date +%s)
 
@@ -47,13 +49,13 @@ log_message "Backup type: $BACKUP_TYPE"
 
 if [ "$BACKUP_TYPE" = "full" ]; then
     log_message "Creating FULL backup..."
-    BACKUP_COMMAND="WALG_DELTA_MAX_STEPS=0 envdir /etc/wal-g/env /usr/local/bin/wal-g backup-push /var/lib/postgresql/data"
+    BACKUP_COMMAND="WALG_DELTA_MAX_STEPS=0 envdir /etc/wal-g/env /usr/local/bin/wal-g backup-push ${DATA_DIR}"
 else
     log_message "Creating INCREMENTAL backup..."
-    BACKUP_COMMAND="envdir /etc/wal-g/env /usr/local/bin/wal-g backup-push /var/lib/postgresql/data"
+    BACKUP_COMMAND="envdir /etc/wal-g/env /usr/local/bin/wal-g backup-push ${DATA_DIR}"
 fi
 
-if eval "$BACKUP_COMMAND" 2>> "$LOG_FILE"; then
+if eval "$BACKUP_COMMAND"; then
     BACKUP_END_TIME=$(date '+%Y-%m-%d %H:%M:%S')
     BACKUP_END_EPOCH=$(date +%s)
     BACKUP_DURATION=$((BACKUP_END_EPOCH - BACKUP_START_EPOCH))
@@ -97,7 +99,7 @@ else
 Details:
 - Started: $BACKUP_START_TIME
 - Failed: $BACKUP_END_TIME
-- Check logs: /var/log/wal-g/backup-cron.log"
+- Check container logs (docker logs)"
     
     exit 1
 fi

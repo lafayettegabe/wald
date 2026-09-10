@@ -60,8 +60,9 @@ docker-entrypoint.sh postgres "${postgres_args[@]}" &
 POSTGRES_PID=$!
 
 check_postgres_ready() {
-    for i in {1..60}; do
-        if pg_isready -U "${POSTGRES_USER:-postgres}" >/dev/null 2>&1; then
+    for i in {1..90}; do
+        if pg_isready -U "${POSTGRES_USER:-postgres}" >/dev/null 2>&1 \
+            && [ "$(cat /proc/${POSTGRES_PID}/comm 2>/dev/null)" = "postgres" ]; then
             return 0
         fi
         sleep 2
@@ -77,11 +78,15 @@ create_initial_backup() {
     
     log_message "Database: $DB_NAME"
     log_message "Database size: $DB_SIZE"
+
+    DATA_DIR=$(psql -U "${POSTGRES_USER:-postgres}" -d "$DB_NAME" -tAc "SHOW data_directory;" 2>/dev/null | xargs)
+    DATA_DIR="${DATA_DIR:-${PGDATA:-/var/lib/postgresql/data}}"
+    log_message "Data directory: $DATA_DIR"
     
     BACKUP_START_TIME=$(date '+%Y-%m-%d %H:%M:%S')
     BACKUP_START_EPOCH=$(date +%s)
     
-    if su - postgres -c "envdir /etc/wal-g/env /usr/local/bin/wal-g backup-push /var/lib/postgresql/data" 2>/var/log/wal-g/initial-backup.log; then
+    if su - postgres -c "envdir /etc/wal-g/env /usr/local/bin/wal-g backup-push ${DATA_DIR}"; then
         BACKUP_END_TIME=$(date '+%Y-%m-%d %H:%M:%S')
         BACKUP_END_EPOCH=$(date +%s)
         BACKUP_DURATION=$((BACKUP_END_EPOCH - BACKUP_START_EPOCH))
@@ -94,14 +99,11 @@ create_initial_backup() {
         log_message "   Started: $BACKUP_START_TIME"
         log_message "   Completed: $BACKUP_END_TIME"
         log_message "   Size: $DB_SIZE"
-        
-        echo "$(date '+%Y-%m-%d %H:%M:%S') [INITIAL-BACKUP] Initial backup completed: $BACKUP_NAME (${BACKUP_DURATION}s)" >> /var/log/wal-g/backup-cron.log
     else
         log_message "❌ Initial backup failed!"
-        log_message "   Check logs: /var/log/wal-g/initial-backup.log"
+        log_message "   Check container logs (docker logs) for wal-g output"
         log_message "   Container will continue running, but manual backup may be needed"
-        
-        echo "$(date '+%Y-%m-%d %H:%M:%S') [INITIAL-BACKUP] Initial backup failed - check /var/log/wal-g/initial-backup.log" >> /var/log/wal-g/backup-cron.log
+        return 1
     fi
 }
 
@@ -110,19 +112,22 @@ create_initial_backup() {
     
     if check_postgres_ready; then
         log_message "PostgreSQL is ready!"
-        
-        sleep 3
-        
+
         EXISTING_BACKUPS=$(su - postgres -c "envdir /etc/wal-g/env /usr/local/bin/wal-g backup-list" 2>/dev/null | wc -l || echo "0")
-        
+
         if [ "$EXISTING_BACKUPS" -eq 0 ]; then
             log_message "No existing backups found, creating initial backup..."
-            create_initial_backup
+            attempt=1
+            until create_initial_backup || [ $attempt -ge 3 ]; do
+                log_message "Initial backup attempt $attempt failed, retrying in 15s..."
+                attempt=$((attempt+1))
+                sleep 15
+            done
         else
             log_message "Found $EXISTING_BACKUPS existing backup(s), skipping initial backup"
         fi
     else
-        log_message "❌ PostgreSQL failed to become ready within 2 minutes"
+        log_message "❌ PostgreSQL failed to become ready within 3 minutes"
         log_message "   Container will continue running, but initial backup was skipped"
     fi
 ) &
